@@ -20,6 +20,7 @@
 #include"framework.h"
 
 #pragma comment(lib,"d2d1.lib")
+#pragma comment(lib,"d3d11.lib")
 
 #define MAX_LOADSTRING 100
 
@@ -211,13 +212,17 @@ HRESULT InitID2D1DeviceContext(ID2D1DeviceContext** ppDeviceContext,HWND hwnd)
 {
 	D2D1_FACTORY_OPTIONS options;
 	ZeroMemory(&options, sizeof(D2D1_FACTORY_OPTIONS));
-	D2D1CreateFactory(
+    HRESULT hr = D2D1CreateFactory(
 		D2D1_FACTORY_TYPE_SINGLE_THREADED,
 		__uuidof(ID2D1Factory2),
 		&options,
 		&m_d2dFactory
 	);
 
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	// This flag adds support for surfaces with a different color channel ordering than the API default.
    // You need it for compatibility with Direct2D.
@@ -247,7 +252,7 @@ HRESULT InitID2D1DeviceContext(ID2D1DeviceContext** ppDeviceContext,HWND hwnd)
 	ComPtr<ID3D11Device> device;
 	ComPtr<ID3D11DeviceContext> context;
 	
-	D3D11CreateDevice(nullptr, // specify null to use the default adapter
+	hr = D3D11CreateDevice(nullptr, // specify null to use the default adapter
 		D3D_DRIVER_TYPE_HARDWARE,
 		0,
 		creationFlags,               //optionally set debug and Direct2D compatibility flags
@@ -259,15 +264,34 @@ HRESULT InitID2D1DeviceContext(ID2D1DeviceContext** ppDeviceContext,HWND hwnd)
 		&context                     //returns the device immediate context
 	);
 
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+
 	ComPtr<IDXGIDevice1> dxgiDevice;
 
 	//obtain the underlying DXGI device of the Direct3D11 device
-	device.As(&dxgiDevice);
+	hr = device.As(&dxgiDevice);
 
-	m_d2dFactory->CreateDevice(dxgiDevice.Get(), &m_d2dDevice);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
-	m_d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_d2dContext);
+	hr = m_d2dFactory->CreateDevice(dxgiDevice.Get(), &m_d2dDevice);
 
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+
+	hr = m_d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_d2dContext);
+
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	//Selecing a target
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
@@ -283,30 +307,64 @@ HRESULT InitID2D1DeviceContext(ID2D1DeviceContext** ppDeviceContext,HWND hwnd)
 
 
 	ComPtr<IDXGIAdapter> dxgiAdapter;
-	dxgiDevice->GetAdapter(&dxgiAdapter);
+	hr = dxgiDevice->GetAdapter(&dxgiAdapter);
+
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	ComPtr<IDXGIFactory2> dxgiFactory;
-	dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
-	dxgiFactory->CreateSwapChainForHwnd(device.Get(),
+	hr = dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+	hr = dxgiFactory->CreateSwapChainForHwnd(device.Get(),
 		hwnd,
 		&swapChainDesc,
 		nullptr,
 		nullptr,
 		&m_swapChain);
 
-	dxgiDevice->SetMaximumFrameLatency(1);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+
+	hr = dxgiDevice->SetMaximumFrameLatency(1);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	ComPtr<ID3D11Texture2D> backBuffer;
-	m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+	hr = m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	D2D1_BITMAP_PROPERTIES1 bitmapProperties =
 		D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET|D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
 			D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,D2D1_ALPHA_MODE_IGNORE));
 
 	ComPtr<IDXGISurface> dxgiBackBuffer;
-	m_swapChain->GetBuffer(0, IID_PPV_ARGS(&dxgiBackBuffer));
+	hr = m_swapChain->GetBuffer(0, IID_PPV_ARGS(&dxgiBackBuffer));
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
-	m_d2dContext->CreateBitmapFromDxgiSurface(dxgiBackBuffer.Get(),&bitmapProperties,&m_d2dTargetBitmap);
+	hr = m_d2dContext->CreateBitmapFromDxgiSurface(dxgiBackBuffer.Get(),&bitmapProperties,&m_d2dTargetBitmap);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
 	m_d2dContext->SetTarget(m_d2dTargetBitmap.Get());
+    *ppDeviceContext = m_d2dContext.Get();
+    (*ppDeviceContext)->AddRef();
+
+    return S_OK;
 }
